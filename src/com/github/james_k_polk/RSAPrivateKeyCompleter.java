@@ -34,8 +34,11 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.RSAPrivateCrtKeySpec;
+import java.util.Random;
 
 public class RSAPrivateKeyCompleter {
+
+    private static final Random RAND = new Random();
 
     /**
      * Find a factor of n by following the algorithm outlined in Handbook of Applied Cryptography, section
@@ -49,12 +52,9 @@ public class RSAPrivateKeyCompleter {
     private static BigInteger findFactor(BigInteger e, BigInteger d, BigInteger n) {
         BigInteger edMinus1 = e.multiply(d).subtract(BigInteger.ONE);
         int s = edMinus1.getLowestSetBit();
-        int s2 = numberOfTrailingZeros(edMinus1);
-        assert s == s2;
         BigInteger t = edMinus1.shiftRight(s);
-        assert t.shiftLeft(s).equals(edMinus1);
 
-        for (int aInt = 2; true; aInt++) {
+        for (int aInt = 2; true; aInt++) { // this sequence of a's should do just as well as random
             BigInteger aPow = BigInteger.valueOf(aInt).modPow(t, n);
             for (int i = 1; i <= s; i++) {
                 if (aPow.equals(BigInteger.ONE)) {
@@ -74,6 +74,55 @@ public class RSAPrivateKeyCompleter {
     }
 
     /**
+     * Same method as <code>findFactor()</code>, but designed for fidelity to the HAC text
+     * rather than speed.
+     *
+     * @param e
+     * @param d
+     * @param n
+     * @return a BigInteger non-trivial proper factor of n.
+     */
+    private static BigInteger findFactorSlow(BigInteger e, BigInteger d, BigInteger n) {
+        // Let ed − 1 = t * (2**s), where t is an odd integer.
+        BigInteger edMinus1 = e.multiply(d).subtract(BigInteger.ONE);
+        int s = edMinus1.getLowestSetBit();
+        BigInteger t = edMinus1.shiftRight(s);
+        Random r = new Random();
+        while (true) {
+            BigInteger a = randomZnStar(n);
+            // a is now a member of [1, n-1]
+            for (int i = 1; i <= s; i++) {
+                BigInteger temp_iMinus1 = a.modPow(t.shiftLeft(i - 1), n);
+                BigInteger temp_i = a.modPow(t.shiftLeft(i), n);
+                if (temp_i.equals(BigInteger.ONE)) {
+                    if (temp_iMinus1.equals(BigInteger.ONE) || temp_iMinus1.equals(n.subtract(BigInteger.ONE))) {
+                        // No solutions for this value of a.
+                        break;
+                    } else {
+                        // found factor.
+                        return temp_iMinus1.subtract(BigInteger.ONE).gcd(n);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Returns a random integer in the closed interval [1, n-1].
+     *
+     * @param n the upper bound
+     * @return a random integer in [1, n-1].
+     */
+    private static BigInteger randomZnStar(BigInteger n) {
+        while (true) {
+            BigInteger a = new BigInteger(n.bitLength(), RAND);
+            if ((a.compareTo(n) != 0) && (a.compareTo(n) < 0)) {
+                return a;
+            }
+        }
+    }
+
+    /**
      * Create a complete RSA CRT private key from a non-CRT RSA private key by using
      * an algorithm to factor the modulus and then computing each of the remaining
      * CRT parameters.
@@ -83,14 +132,15 @@ public class RSAPrivateKeyCompleter {
      * @return an RSAPrivateCrtKey containing all the CRT parameters.
      */
 
-    public static RSAPrivateCrtKey createCrtKey(RSAPublicKey rsaPub, RSAPrivateKey rsaPriv) throws NoSuchAlgorithmException, InvalidKeySpecException {
+    public static RSAPrivateCrtKey createCrtKey(RSAPublicKey rsaPub, RSAPrivateKey rsaPriv) throws
+            NoSuchAlgorithmException, InvalidKeySpecException {
 
         BigInteger e = rsaPub.getPublicExponent();
         BigInteger d = rsaPriv.getPrivateExponent();
         BigInteger n = rsaPub.getModulus();
         BigInteger p = findFactor(e, d, n);
         BigInteger q = n.divide(p);
-        if (p.compareTo(q) > 0) {
+        if (p.compareTo(q) < 0) {
             BigInteger t = p;
             p = q;
             q = t;
@@ -103,30 +153,6 @@ public class RSAPrivateKeyCompleter {
         KeyFactory kf = KeyFactory.getInstance("RSA");
         return (RSAPrivateCrtKey) kf.generatePrivate(keySpec);
 
-    }
-
-    private static int numberOfTrailingZeros(BigInteger x) {
-        int result = 0;
-        if (x.signum() == 0) {
-            return -1;
-        }
-        while (!x.testBit(0)) {
-            ++result;
-            x = x.shiftRight(1);
-        }
-        return result;
-    }
-
-    public static void main(String[] args) throws Exception {
-        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
-        kpg.initialize(1024);
-        while (true) {
-            KeyPair keyPair = kpg.generateKeyPair();
-            RSAPublicKey rsaPub = (RSAPublicKey) keyPair.getPublic();
-            RSAPrivateCrtKey rsaPrivateCrtKey = (RSAPrivateCrtKey) keyPair.getPrivate();
-            RSAPrivateCrtKey rsaPrivateCrtKey1 = createCrtKey(rsaPub, rsaPrivateCrtKey);
-            assert keyEquals(rsaPrivateCrtKey, rsaPrivateCrtKey1);
-        }
     }
 
     private static boolean keyEquals(RSAPrivateCrtKey k1, RSAPrivateCrtKey k2) {
@@ -142,14 +168,24 @@ public class RSAPrivateKeyCompleter {
 
         return result;
     }
-    private static void printKey(RSAPrivateCrtKey rsaPriv) {
-        System.out.printf("n = %x%n", rsaPriv.getModulus());
-        System.out.printf("e = %x%n", rsaPriv.getPublicExponent());
-        System.out.printf("d = %x%n", rsaPriv.getPrivateExponent());
-        System.out.printf("p = %x%n", rsaPriv.getPrimeP());
-        System.out.printf("q = %x%n", rsaPriv.getPrimeQ());
-        System.out.printf("exp1 = %x%n", rsaPriv.getPrimeExponentP());
-        System.out.printf("exp2 = %x%n", rsaPriv.getPrimeExponentQ());
-        System.out.printf("coeff = %x%n", rsaPriv.getCrtCoefficient());
+
+    /**
+     * This main method simply enters an infinite loop, generating RSA keypairs
+     * and attempting to regenerate the private key from the e, d, and n components
+     * only.
+     *
+     * @param args these are ignored.
+     * @throws Exception
+     */
+    public static void main(String[] args) throws Exception {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+        kpg.initialize(1024);
+        while (true) {
+            KeyPair keyPair = kpg.generateKeyPair();
+            RSAPublicKey rsaPub = (RSAPublicKey) keyPair.getPublic();
+            RSAPrivateCrtKey rsaPrivateCrtKey = (RSAPrivateCrtKey) keyPair.getPrivate();
+            RSAPrivateCrtKey rsaPrivateCrtKey1 = createCrtKey(rsaPub, rsaPrivateCrtKey);
+            assert keyEquals(rsaPrivateCrtKey, rsaPrivateCrtKey1);
+        }
     }
 }
