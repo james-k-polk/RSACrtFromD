@@ -15,7 +15,7 @@ values.
 import java.math.BigInteger;
 
 public class Examples {
-    public static void main(String[] args) throws java.security.GeneralSecurityException {
+    public static void main(String[] args) {
         BigInteger n = new BigInteger("e000216ac013b89c70079f237899daf2e81875d68d6bcfb0ee1d19452915b57f60ded5830d608fa9b9ffa34796a043ea024b3e8388c5f20cdb4de80ebd7779f9", 16);
         BigInteger e = new BigInteger("10001", 16);
         BigInteger d = new BigInteger("c6f196bc56c7ad28d39f1149d1ace3f6e50804707fbe07021f191cfe7dd4d8121623df40d9e102f009cc6b0ba2c9b3c81caa11688f4d86ba25cd7aad0e044301", 16);
