@@ -36,7 +36,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.RSAPrivateCrtKeySpec;
 import java.util.Random;
 
-public class RSAPrivateKeyCompleter {
+public class RSACrtFromD {
 
     private static final Random RAND = new Random();
 
@@ -49,7 +49,7 @@ public class RSAPrivateKeyCompleter {
      * @param n the RSA modulus.
      * @return a BigInteger non-trivial proper factor of n
      */
-    private static BigInteger findFactor(BigInteger e, BigInteger d, BigInteger n) {
+    public static BigInteger findFactor(BigInteger e, BigInteger d, BigInteger n) {
         BigInteger edMinus1 = e.multiply(d).subtract(BigInteger.ONE);
         int s = edMinus1.getLowestSetBit();
         BigInteger t = edMinus1.shiftRight(s);
@@ -77,12 +77,12 @@ public class RSAPrivateKeyCompleter {
      * Same method as <code>findFactor()</code>, but designed for fidelity to the HAC text
      * rather than speed.
      *
-     * @param e
-     * @param d
-     * @param n
+     * @param e the RSA public exponent.
+     * @param d the RSA private exponent.
+     * @param n the RSA modulus.
      * @return a BigInteger non-trivial proper factor of n.
      */
-    private static BigInteger findFactorSlow(BigInteger e, BigInteger d, BigInteger n) {
+    public static BigInteger findFactorSlow(BigInteger e, BigInteger d, BigInteger n) {
         // Let ed − 1 = t * (2**s), where t is an odd integer.
         BigInteger edMinus1 = e.multiply(d).subtract(BigInteger.ONE);
         int s = edMinus1.getLowestSetBit();
