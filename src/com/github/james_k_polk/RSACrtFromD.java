@@ -87,7 +87,6 @@ public class RSACrtFromD {
         BigInteger edMinus1 = e.multiply(d).subtract(BigInteger.ONE);
         int s = edMinus1.getLowestSetBit();
         BigInteger t = edMinus1.shiftRight(s);
-        Random r = new Random();
         while (true) {
             BigInteger a = randomZnStar(n);
             // a is now a member of [1, n-1]
